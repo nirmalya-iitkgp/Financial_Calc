@@ -1,0 +1,7 @@
+numpy
+scipy
+pytest
+numpy_financial
+pyinstaller
+panda
+matplotlib
