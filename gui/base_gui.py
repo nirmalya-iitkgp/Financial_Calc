@@ -7,9 +7,7 @@ import sys
 from typing import Union
 import re
 
-# Import the config file
-import config # <--- ADDED: Import config
-
+import config 
 from config import (
     DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, MAIN_WINDOW_TITLE,
     DEFAULT_DECIMAL_PLACES_CURRENCY, DEFAULT_DECIMAL_PLACES_PERCENTAGE, DEFAULT_DECIMAL_PLACES_GENERAL
@@ -39,23 +37,16 @@ class BaseGUI(ttk.Frame):
         self.parent = parent
         self.controller = controller
 
-        self.input_fields = {}
+        self.input_fields = {} # <--- Ensure this is initialized here
         self.calculation_result_label = None
 
-        # --- Apply the TTK Theme from config.py ---
-        # It's best to set the theme once, typically at the root window level (e.g., in App.py).
-        # However, if BaseGUI is the primary entry point for individual module testing,
-        # or if you want to ensure it's always set when a BaseGUI instance is created,
-        # placing it here works. Just be aware it might re-apply if multiple BaseGUI instances are made.
-        # A more robust solution for an app with a main App.py is to apply it there once.
         style = ttk.Style()
         try:
-            style.theme_use(config.TTK_THEME) # <--- Using the theme from config.py
+            style.theme_use(config.TTK_THEME)
             logger.info(f"Applied ttk theme: {config.TTK_THEME}")
         except tk.TclError as e:
             logger.warning(f"Could not apply theme '{config.TTK_THEME}': {e}. Falling back to 'clam'.")
-            style.theme_use('clam') # Fallback if the theme isn't found
-        # --- End Theme Application ---
+            style.theme_use('clam')
 
         self._setup_scrollable_frame()
         self._create_common_widgets(self.scrollable_frame)
@@ -123,10 +114,14 @@ class BaseGUI(ttk.Frame):
         self.calculate_button = ttk.Button(self.common_buttons_frame, text="Calculate (Override Me)", command=self.calculate)
         self.calculate_button.pack(side="left", padx=5)
 
-    def create_input_row(self, parent_frame, row, label_text, default_value="", tooltip_text=""):
+    def create_input_row(self, parent_frame, row, label_text, default_value="",
+                         tooltip_text="",           # Existing optional parameter
+                         entry_key=None,            # <--- ADDED: New optional parameter
+                         is_currency=False,         # <--- ADDED: New optional parameter
+                         is_percentage=False):      # <--- ADDED: New optional parameter
         """
         Helper method to create a label and an Entry widget for input.
-        Stores the Entry widget in self.input_fields.
+        Stores the Entry's StringVar in self.input_fields.
 
         Args:
             parent_frame (tk.Widget): The frame to place the widgets in.
@@ -134,34 +129,63 @@ class BaseGUI(ttk.Frame):
             label_text (str): The text for the label.
             default_value (str): Initial value for the Entry.
             tooltip_text (str): Tooltip message for the entry field.
+            entry_key (str, optional): A specific key to store the entry's value.
+                                       If None, a key is derived from label_text.
+            is_currency (bool): If True, indicates a currency input for potential formatting/symbol.
+            is_percentage (bool): If True, indicates a percentage input for potential formatting/symbol.
         """
         label = ttk.Label(parent_frame, text=label_text)
         label.grid(row=row, column=0, padx=10, pady=5, sticky="w")
 
-        entry = ttk.Entry(parent_frame, width=30)
-        entry.insert(0, str(default_value))
+        # --- IMPORTANT CHANGE: Use tk.StringVar for robust data handling ---
+        entry_var = tk.StringVar(value=str(default_value))
+        entry = ttk.Entry(parent_frame, textvariable=entry_var, width=30)
         entry.grid(row=row, column=1, padx=10, pady=5, sticky="ew")
         
-        # Convert label to lowercase, replace non-alphanumeric with spaces,
-        # then consolidate multiple spaces to single underscores, and strip leading/trailing underscores.
-        field_key = label_text.lower()
-        field_key = re.sub(r'[^a-z0-9]+', ' ', field_key).strip() # Replace non-alphanumeric with single space, strip outer spaces
-        field_key = field_key.replace(' ', '_') # Replace remaining spaces with underscores
-        
-        self.input_fields[field_key] = entry
+        # --- Add currency/percentage indicators if needed ---
+        # Adjust column for indicators if both are used
+        indicator_col = 2 
+        if is_currency:
+            currency_label = ttk.Label(parent_frame, text="$", style="TLabel")
+            currency_label.grid(row=row, column=indicator_col, padx=(0, 5), pady=5, sticky="w")
+            parent_frame.grid_columnconfigure(indicator_col, weight=0)
+            indicator_col += 1 # Move to next column for percentage if currency exists
+
+        if is_percentage:
+            percentage_label = ttk.Label(parent_frame, text="%", style="TLabel")
+            percentage_label.grid(row=row, column=indicator_col, padx=(0, 5), pady=5, sticky="w")
+            parent_frame.grid_columnconfigure(indicator_col, weight=0)
+
+        parent_frame.grid_columnconfigure(1, weight=1) # Make entry column expand
+
+        # --- Logic for determining the storage key ---
+        if entry_key is None:
+            # Existing logic to derive key from label_text (for backward compatibility)
+            final_key = label_text.lower()
+            final_key = re.sub(r'[^a-z0-9]+', ' ', final_key).strip()
+            final_key = final_key.replace(' ', '_')
+        else:
+            final_key = entry_key # Use the provided entry_key
+
+        self.input_fields[final_key] = entry # <--- Store the StringVar, not the Entry widget
 
         if tooltip_text:
-            logger.debug(f"Tooltip for '{label_text}': '{tooltip_text}' (not implemented in BaseGUI)")
+            # As you noted, tooltips are not fully implemented here.
+            # If you want proper tooltips, you'd need a ToolTip class (e.g., from an external library or custom).
+            logger.debug(f"Tooltip for '{label_text}': '{tooltip_text}' (Tooltip display not fully implemented in BaseGUI)")
+            # Example if you add a ToolTip class:
+            # ToolTip(label, tooltip_text)
+            # ToolTip(entry, tooltip_text)
 
-        return entry
+        return entry_var # <--- Return the StringVar for potential external use
 
     def get_input_value(self, field_key: str) -> str:
-        entry = self.input_fields.get(field_key)
-        if entry:
-            return entry.get()
+        # --- IMPORTANT CHANGE: Retrieve value from StringVar, not Entry widget ---
+        entry_widget = self.input_fields.get(field_key)
+        if entry_widget:
+            return entry_widget.get() # Get value directly from the Entry widget
         logger.warning(f"Attempted to get value from non-existent input field: {field_key}")
         return ""
-
     def display_result(self, message: str, is_error: bool = False):
         if self.calculation_result_label:
             self.calculation_result_label.config(text=message)
@@ -215,8 +239,8 @@ class BaseGUI(ttk.Frame):
         """
         return validate_list_input(input_str, expected_type, field_name)
 
-    def format_currency_output(self, amount: Union[float, int], currency_symbol: str = "$", decimal_places: int = DEFAULT_DECIMAL_PLACES_CURRENCY) -> str:
-        return format_currency(amount, currency_symbol, decimal_places)
+    def format_currency_output(self, amount: Union[float, int], currency_symbol: str = "$", decimal_places: int = DEFAULT_DECIMAL_PLACES_CURRENCY, include_symbol: bool = True) -> str:
+        return format_currency(amount, currency_symbol, decimal_places, include_symbol)
 
     def format_percentage_output(self, value: Union[float, int], decimal_places: int = DEFAULT_DECIMAL_PLACES_PERCENTAGE) -> str:
         return format_percentage(value, decimal_places)
@@ -229,11 +253,7 @@ if __name__ == "__main__":
     root.title("BaseGUI Test")
     root.geometry(f"{DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT}")
 
-    # --- REMOVED: Theme setting is now handled by BaseGUI's __init__ method ---
-    # style = ttk.Style()
-    # style.theme_use('clam')
-
-    base_frame = BaseGUI(root) # <--- Theme applied here when BaseGUI is instantiated
+    base_frame = BaseGUI(root)
     base_frame.pack(fill="both", expand=True)
 
     base_frame.create_input_row(base_frame.scrollable_frame, 0, "Dummy Input 1 (Test):", "100")
