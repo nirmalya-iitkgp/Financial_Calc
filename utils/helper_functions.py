@@ -2,13 +2,14 @@
 
 import logging
 from typing import Union
+import re
 from config import DEFAULT_DECIMAL_PLACES_CURRENCY, DEFAULT_DECIMAL_PLACES_PERCENTAGE, DEFAULT_DECIMAL_PLACES_GENERAL
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def format_currency(amount: Union[float, int], currency_symbol: str = "$", decimal_places: int = DEFAULT_DECIMAL_PLACES_CURRENCY) -> str:
+def format_currency(amount: Union[float, int], currency_symbol: str = "$", decimal_places: int = DEFAULT_DECIMAL_PLACES_CURRENCY, include_symbol: bool = True) -> str:
     """
     Formats a numeric amount as a currency string.
 
@@ -16,27 +17,30 @@ def format_currency(amount: Union[float, int], currency_symbol: str = "$", decim
         amount (Union[float, int]): The numerical amount to format.
         currency_symbol (str): The symbol of the currency (e.g., "$", "€", "₹").
         decimal_places (int): The number of decimal places to format to.
-                              Defaults to DEFAULT_DECIMAL_PLACES_CURRENCY from config.
+                                Defaults to DEFAULT_DECIMAL_PLACES_CURRENCY from config.
+        include_symbol (bool): If True, the currency symbol is included in the output.
+                                Defaults to True. <-- ADD THIS LINE TO DOCSTRING
 
     Returns:
         str: The formatted currency string.
     """
     try:
+        # Ensure amount is a float for consistent formatting
+        float_amount = float(amount)
+
         # Format the number with specified decimal places and thousands separator
-        format_string = f"{{:{'.' + str(decimal_places) + 'f'}}}"
-        formatted_amount = format_string.format(amount)
+        # This uses f-string for comma separation and decimal places directly.
+        formatted_amount_with_commas = f"{float_amount:,.{decimal_places}f}"
 
-        # Add thousands separators (Python's format handles this with ',')
-        # However, for manual insertion with custom decimal places, it's easier to format first,
-        # then explicitly add comma separators if not already handled by locale/formatter.
-        # Let's use f-string with ',' for thousands separator if Python version supports it.
-        # For older Python versions, locale might be needed, but for modern (3.6+), f-string is good.
-        formatted_amount_with_commas = f"{float(amount):,.{decimal_places}f}"
+        if include_symbol:
+            return f"{currency_symbol}{formatted_amount_with_commas}"
+        else:
+            return formatted_amount_with_commas
 
-        return f"{currency_symbol}{formatted_amount_with_commas}"
     except (ValueError, TypeError) as e:
         logger.error(f"Error formatting currency amount {amount} with symbol '{currency_symbol}': {e}")
         return f"Error: Invalid Amount"
+# --- END OF CHANGE ---
 
 def format_percentage(value: Union[float, int], decimal_places: int = DEFAULT_DECIMAL_PLACES_PERCENTAGE) -> str:
     """
