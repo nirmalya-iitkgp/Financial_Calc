@@ -1,6 +1,6 @@
 import logging
 # Configure the root logger to output INFO messages and above
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -18,6 +18,8 @@ from gui.private_markets_credit_gui import PrivateMarketsAndCreditRiskGUI
 from gui.yield_curve_gui import YieldCurveGUI 
 from gui.queuing_calculator_gui import QueuingCalculatorGUI
 from gui.operations_finance_gui import OperationsFinanceGUI
+from gui.acc_input_gui import AccountingInputGUI
+from gui.acc_output_gui import AccountingOutputGUI
 
 # Get a logger for this module (main_app.py)
 logger = logging.getLogger(__name__)
@@ -75,6 +77,8 @@ class MainApplication(tk.Tk):
             ("Queuing Theory", QueuingCalculatorGUI),
             ("Operations Finance", OperationsFinanceGUI),
             ("General Tools", GeneralToolsGUI),
+            ("Financial Accounting Input", AccountingInputGUI),
+            ("Financial Accounting Output", AccountingOutputGUI),
         ]
 
         # Add calculator GUIs to content frame and create sidebar buttons
@@ -165,7 +169,7 @@ class MainApplication(tk.Tk):
             button.grid(row=i, column=0, sticky="ew", padx=10, pady=5) # Place button in button_frame
             self.calculator_buttons[module_name] = button # Store button reference for highlighting
 
-    def _show_frame(self, frame_name: str):
+    def _show_frame(self, frame_name: str, data=None): # <--- CHANGE THIS LINE
         """
         Shows the specified calculator frame in the content area and hides all others.
         Also updates the sidebar button highlight.
@@ -180,6 +184,14 @@ class MainApplication(tk.Tk):
             # Show the selected frame
             frame.grid() # Make visible using grid
 
+            # *** NEW LOGIC TO PASS DATA TO THE TARGET FRAME (specifically for Accounting Output) ***
+            if frame_name == "Financial Accounting Output" and data is not None:
+                if hasattr(frame, 'display_results'): # Check if the method exists on the target frame
+                    frame.display_results(data)
+                else:
+                    logger.warning(f"OutputGUI frame '{frame_name}' does not have a 'display_results' method. Data not passed.")
+
+
             # Highlight the corresponding button in the sidebar
             self._highlight_button(frame_name)
 
@@ -187,6 +199,7 @@ class MainApplication(tk.Tk):
         else:
             logger.error(f"Attempted to show non-existent frame: {frame_name}")
             messagebox.showerror("UI Error", f"Calculator module '{frame_name}' not found.")
+
 
     def _highlight_button(self, active_button_name: str):
         """Highlights the active button in the sidebar and unhighlights others."""
